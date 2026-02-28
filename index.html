@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Roll and Reveal Dice</title>
+<style>
+body {
+  font-family: Arial;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  transition: background 2s;
+}
+
+#gameBox {
+  width: 90%;
+  max-width: 800px;
+  margin: 50px auto;
+  padding: 30px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+h1 { font-size: 40px; margin-top: 0; }
+input#question {
+  width: 80%;
+  max-width: 700px;
+  padding: 15px;
+  font-size: 24px;
+  border-radius: 8px;
+  border: 2px solid #999;
+  margin-top: 10px;
+}
+select { padding: 12px; font-size: 20px; margin-top: 10px; }
+button {
+  padding: 12px 24px;
+  font-size: 22px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+#dice {
+  font-size: 180px;
+  margin: 20px 0 10px 0;
+  display: inline-block;
+  color: #000;
+  text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+  transition: all 0.3s;
+}
+
+.bouncing {
+  animation: bounce 0.6s ease-in-out infinite;
+}
+
+.spinning {
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes bounce {
+  0%,100% { transform: translateY(0) scale(1) rotate(0deg); }
+  25% { transform: translateY(-30px) scale(1.1) rotate(30deg); }
+  50% { transform: translateY(0) scale(1) rotate(60deg); }
+  75% { transform: translateY(-15px) scale(1.05) rotate(90deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#answer {
+  font-size: 60px;
+  font-weight: bold;
+  margin-top: 10px;
+  color: #ff4500;
+  text-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+}
+</style>
+</head>
+<body>
+<div id="gameBox">
+  <h1>Roll and Reveal 🎲</h1>
+
+  <select id="language">
+    <option value="en">English</option>
+    <option value="es">Spanish</option>
+    <option value="fr">French</option>
+    <option value="de">German</option>
+    <option value="zh">Chinese</option>
+    <option value="ja">Japanese</option>
+    <option value="pt">Portuguese</option>
+    <option value="ru">Russian</option>
+    <option value="ar">Arabic</option>
+    <option value="hi">Hindi</option>
+  </select>
+  <br>
+
+  <input type="text" id="question" placeholder="Type your question here...">
+  <button id="rollBtn">Roll!</button>
+
+  <h1 id="dice">🎲</h1>
+  <h2 id="answer"></h2>
+</div>
+
+<script>
+// --- Dice answers ---
+const answers = {
+  en: ["Yes ✅","No ❌","Maybe 🤔","Possibly 🤞","Probably Not 🚫","Try Again 🔄"],
+  es: ["Sí ✅","No ❌","Quizás 🤔","Posiblemente 🤞","Probablemente No 🚫","Inténtalo de nuevo 🔄"],
+  fr: ["Oui ✅","Non ❌","Peut-être 🤔","Possiblement 🤞","Probablement pas 🚫","Réessayez 🔄"],
+  de: ["Ja ✅","Nein ❌","Vielleicht 🤔","Möglicherweise 🤞","Wahrscheinlich nicht 🚫","Versuche es erneut 🔄"],
+  zh: ["是 ✅","否 ❌","可能 🤔","或许 🤞","大概不是 🚫","再试一次 🔄"],
+  ja: ["はい ✅","いいえ ❌","多分 🤔","可能性あり 🤞","おそらく違う 🚫","もう一度 🔄"],
+  pt: ["Sim ✅","Não ❌","Talvez 🤔","Possivelmente 🤞","Provavelmente não 🚫","Tente novamente 🔄"],
+  ru: ["Да ✅","Нет ❌","Возможно 🤔","Вполне возможно 🤞","Скорее нет 🚫","Попробуйте снова 🔄"],
+  ar: ["نعم ✅","لا ❌","ربما 🤔","من المحتمل 🤞","على الأرجح لا 🚫","حاول مرة أخرى 🔄"],
+  hi: ["हाँ ✅","नहीं ❌","शायद 🤔","संभवतः 🤞","शायद नहीं 🚫","फिर से प्रयास करें 🔄"]
+};
+
+// --- Roll limit / payment ---
+const MAX_ROLLS = 50;
+const COOLDOWN_HOURS = 24;
+
+function getRollData() {
+  let data = localStorage.getItem("diceRollData");
+  if(data) return JSON.parse(data);
+  return { count:0, lastReset: Date.now() };
+}
+function saveRollData(data) { localStorage.setItem("diceRollData", JSON.stringify(data)); }
+function checkReset() {
+  let data = getRollData();
+  if(Date.now() - data.lastReset >= COOLDOWN_HOURS*60*60*1000){
+    data.count=0;
+    data.lastReset=Date.now();
+    saveRollData(data);
+  }
+}
+
+// --- Dice rolling ---
+const rollBtn = document.getElementById("rollBtn");
+const dice = document.getElementById("dice");
+const answerBox = document.getElementById("answer");
+const questionInput = document.getElementById("question");
+const languageSelect = document.getElementById("language");
+
+rollBtn.addEventListener("click", () => {
+  checkReset();
+  let data = getRollData();
+  if(data.count >= MAX_ROLLS){
+    alert("You’ve rolled 50 times! Please pay £3 to continue.");
+    return; // block rolling
+  }
+
+  const lang = languageSelect.value;
+  const currentAnswers = answers[lang];
+
+  let spins = 15;
+  let count = 0;
+
+  dice.classList.add("bouncing", "spinning");
+
+  const interval = setInterval(()=>{
+    answerBox.textContent = currentAnswers[Math.floor(Math.random()*currentAnswers.length)];
+    answerBox.style.color = `hsl(${Math.random()*360},80%,50%)`;
+
+    count++;
+    if(count>=spins){
+      clearInterval(interval);
+      const finalAns = Math.floor(Math.random() * currentAnswers.length);
+
+      dice.classList.remove("bouncing", "spinning");
+      dice.style.color = "#000";
+
+      answerBox.textContent = currentAnswers[finalAns];
+      answerBox.style.color = "#ff4500";
+
+      questionInput.value = "";
+      data.count++;
+      saveRollData(data);
+    }
+  }, 100);
+});
+
+// --- Seasonal background ---
+function updateBackground(){
+  const month = new Date().getMonth()+1;
+  if(month>=3 && month<=5) document.body.style.background="linear-gradient(#d0f0c0,#a0e0a0)"; // Spring
+  else if(month>=6 && month<=8) document.body.style.background="linear-gradient(#ffe680,#ffcc33)"; // Summer
+  else if(month>=9 && month<=11) document.body.style.background="linear-gradient(#ffdd99,#cc9966)"; // Autumn
+  else document.body.style.background="linear-gradient(#cce0ff,#6699ff)"; // Winter
+}
+updateBackground();
+setInterval(updateBackground,1000*60*10); // update every 10 minutes
+</script>
+</body>
+</html>
